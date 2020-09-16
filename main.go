@@ -6,7 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -24,7 +23,7 @@ func main() {
 		url := sc.Text()
 		baseResp, err := cl.DoRequest(url, "")
 		if err != nil {
-			log.Fatalf("error making baseline request: %+v", err)
+		    continue
 		}
 		res, err := cl.CheckVuln(baseResp); if err != nil {
 		    continue
@@ -78,7 +77,7 @@ func (cl *Client) CheckVuln(r *http.Response) (Result, error) {
 	url := r.Request.URL.String()
 	resp, err := cl.DoRequest(url, rangeHeader)
 	if err != nil {
-		log.Fatalf("request error: %+v", err)
+		return Result{}, errors.New("error in making vulnerable request")
 	}
 
 	if resp.StatusCode == 206 && resp.Header.Get("Content-Range") != "" {
