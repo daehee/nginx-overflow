@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -82,7 +83,7 @@ func (cl *Client) CheckVuln(r *http.Response) (Result, error) {
 		return Result{}, errors.New("error in making vulnerable request")
 	}
 
-	if resp.StatusCode == 206 && resp.Header.Get("Content-Range") != "" && checkNginx(resp) {
+	if resp.StatusCode == 206 && checkContentRange(resp) && checkNginx(resp) {
 		return Result{url, rs, re}, nil
 	}
 	return Result{}, errors.New("not vulnerable")
@@ -91,6 +92,20 @@ func (cl *Client) CheckVuln(r *http.Response) (Result, error) {
 func checkNginx(r *http.Response) bool {
 	server := r.Header.Get("Server")
 	return strings.Contains(server, "nginx")
+}
+
+func checkContentRange(r *http.Response) bool {
+	// check if Content-Range is in response header
+	if r.Header.Get("Content-Range") != "" {
+		return true
+	} else if strings.Contains(r.Header.Get("Content-Type"), "multipart/byteranges") {
+		// check if Content-Range is returned in response body
+		rx := regexp.MustCompile(`(?i)content-range:\sbytes`)
+		if rx.MatchReader(bufio.NewReader(r.Body)) {
+			return true
+		}
+	}
+	return false
 }
 
 func overflowRange(cLen int) (rs, re int) {
