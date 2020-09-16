@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/projectdiscovery/retryablehttp-go"
 )
@@ -81,10 +82,15 @@ func (cl *Client) CheckVuln(r *http.Response) (Result, error) {
 		return Result{}, errors.New("error in making vulnerable request")
 	}
 
-	if resp.StatusCode == 206 && resp.Header.Get("Content-Range") != "" {
+	if resp.StatusCode == 206 && resp.Header.Get("Content-Range") != "" && checkNginx(resp) {
 		return Result{url, rs, re}, nil
 	}
 	return Result{}, errors.New("not vulnerable")
+}
+
+func checkNginx(r *http.Response) bool {
+	server := r.Header.Get("Server")
+	return strings.Contains(server, "nginx")
 }
 
 func overflowRange(cLen int) (rs, re int) {
